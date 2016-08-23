@@ -32,7 +32,12 @@
 
 # If unittest2 is available, use it in preference to (the old) unittest
 try:
-    import unittest2 as unittest
+    import nose
+    from nose.plugins import multiprocess
+    from nose.config import Config
+    from nose.loader import TestLoader
+    from unittest.runner import _WritelnDecorator
+    import unittest
 except ImportError:
     import unittest
 
@@ -155,6 +160,7 @@ class TestSuiteConnection(object):
 
 
 class WiredTigerTestCase(unittest.TestCase):
+    _multiprocess_can_split_ = True
     _globalSetup = False
     _printOnceSeen = {}
 
@@ -528,29 +534,42 @@ def longtest(description):
     def runit_decorator(func):
         return func
     if not WiredTigerTestCase._longtest:
-        return unittest.skip(description + ' (enable with --long)')
+        #self.pr("Skipped " + description + ' (enable with --long)')
+        return unittest.SkipTest
     else:
         return runit_decorator
 
 def islongtest():
     return WiredTigerTestCase._longtest
 
+class Options(object):
+    multiprocess_workers = 4
+    multiprocess_timeout = 10
+    multiprocess_restartworker = True
+
+
 def runsuite(suite, parallel):
     suite_to_run = suite
-    if parallel > 1:
-        from concurrencytest import ConcurrentTestSuite, fork_for_tests
-        if not WiredTigerTestCase._globalSetup:
-            WiredTigerTestCase.globalSetup()
-        WiredTigerTestCase._concurrent = True
-        suite_to_run = ConcurrentTestSuite(suite, fork_for_tests(parallel))
-    try:
-        return unittest.TextTestRunner(
-            verbosity=WiredTigerTestCase._verbose).run(suite_to_run)
-    except BaseException as e:
-        # This should not happen for regular test errors, unittest should catch everything
-        print('ERROR: running test: ', e)
-        raise e
+    cfg = nose.config.Config()
+    cfg.multiprocess_workers = 2
+    cfg.multiprocess_timeout = 5
+    from nose.plugins.multiprocess import MultiProcess
+    plug_mgr = nose.plugins.manager.PluginManager()
+    multi = MultiProcess()
+    plug_mgr.addPlugin(multi)
+    cfg.plugins = plug_mgr
+    if not WiredTigerTestCase._globalSetup:
+        WiredTigerTestCase.globalSetup()
+    WiredTigerTestCase._concurrent = True
+    #try:
+    return nose.core.TextTestRunner(
+        verbosity=WiredTigerTestCase._verbose,config=cfg).run(suite_to_run)
+    #except BaseException as e:
+    #    # This should not happen for regular test errors, unittest should catch everything
+    #    print('ERROR: running test: ', e)
+    #    raise e
+
 
 def run(name='__main__'):
-    result = runsuite(unittest.TestLoader().loadTestsFromName(name), False)
+    result = runsuite(nose.TestLoader().loadTestsFromName(name), False)
     sys.exit(0 if result.wasSuccessful() else 1)

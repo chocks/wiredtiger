@@ -69,6 +69,7 @@ for d in os.listdir(wt_3rdpartydir):
 import wttest
 # Use the same version of unittest found by wttest.py
 unittest = wttest.unittest
+nose = wttest.nose
 from testscenarios.scenarios import generate_scenarios
 
 def usage():
@@ -155,9 +156,9 @@ def configGet(cmap, tup):
     return True
 
 def configApplyInner(suites, configmap, configwrite):
-    newsuite = unittest.TestSuite()
+    newsuite = nose.suite.LazySuite()
     for s in suites:
-        if type(s) is unittest.TestSuite:
+        if type(s) is nose.suite.LazySuite:
             newsuite.addTest(configApplyInner(s, configmap, configwrite))
         else:
             modname = s.__module__
@@ -233,7 +234,7 @@ def testsFromArg(tests, loader, arg, scenario):
         addScenarioTests(tests, loader, 'test%03d' % t, scenario)
 
 if __name__ == '__main__':
-    tests = unittest.TestSuite()
+    tests = nose.suite.LazySuite()
 
     # Turn numbers and ranges into test module names
     preserve = timestamp = debug = gdbSub = longtest = False
@@ -270,7 +271,7 @@ if __name__ == '__main__':
             if option == '-long' or option == 'l':
                 longtest = True
                 continue
-            if option == '-parallel' or option == 'j':
+            if option == '-processes' or option == 'j':
                 if parallel != 0 or len(args) == 0:
                     usage()
                     sys.exit(2)

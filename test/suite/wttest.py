@@ -33,7 +33,8 @@
 # If unittest2 is available, use it in preference to (the old) unittest
 try:
     import nose
-    from nose.plugins import multiprocess
+    #from nose.plugins import multiprocess
+    from nose.plugins.multiprocess import MultiProcess
     from nose.config import Config
     from nose.loader import TestLoader
     from unittest.runner import _WritelnDecorator
@@ -542,28 +543,35 @@ def longtest(description):
 def islongtest():
     return WiredTigerTestCase._longtest
 
-class Options(object):
-    multiprocess_workers = 4
-    multiprocess_timeout = 10
-    multiprocess_restartworker = True
+class Options:
+    def __init__(self, workers):
+        self.multiprocess_workers = workers
+        self.multiprocess_timeout = 10
+        self.multiprocess_restartworker = True
 
 
-def runsuite(suite, parallel):
-    suite_to_run = suite
+def runsuite(suite, loader, parallel):
     cfg = nose.config.Config()
-    cfg.multiprocess_workers = 2
-    cfg.multiprocess_timeout = 5
-    from nose.plugins.multiprocess import MultiProcess
+    options = Options(parallel)
+    tests_to_run = []
+    for t in suite:
+       tests_to_run.append(t)
+
     plug_mgr = nose.plugins.manager.PluginManager()
     multi = MultiProcess()
     plug_mgr.addPlugin(multi)
     cfg.plugins = plug_mgr
+    cfg.verbosity=WiredTigerTestCase._verbose
+    multi.configure(options,cfg)
+    multi.prepareTestLoader(loader)
     if not WiredTigerTestCase._globalSetup:
         WiredTigerTestCase.globalSetup()
     WiredTigerTestCase._concurrent = True
     #try:
-    return nose.core.TextTestRunner(
-        verbosity=WiredTigerTestCase._verbose,config=cfg).run(suite_to_run)
+    runner = nose.core.TextTestRunner(
+        verbosity=WiredTigerTestCase._verbose,config=cfg)
+    runner = multi.prepareTestRunner(runner)
+    runner.run(suite)
     #except BaseException as e:
     #    # This should not happen for regular test errors, unittest should catch everything
     #    print('ERROR: running test: ', e)
@@ -571,5 +579,6 @@ def runsuite(suite, parallel):
 
 
 def run(name='__main__'):
-    result = runsuite(nose.TestLoader().loadTestsFromName(name), False)
+    loader = nose.TestLoader()
+    result = runsuite(loadTestsFromName(name), loader, False)
     sys.exit(0 if result.wasSuccessful() else 1)

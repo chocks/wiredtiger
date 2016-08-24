@@ -31,6 +31,7 @@
 #
 
 import glob, json, os, re, sys
+from nose.suite import LazySuite
 
 # Set paths
 suitedir = sys.path[0]
@@ -156,7 +157,7 @@ def configGet(cmap, tup):
     return True
 
 def configApplyInner(suites, configmap, configwrite):
-    newsuite = nose.suite.LazySuite()
+    newsuite = LazySuite()
     for s in suites:
         if type(s) is nose.suite.LazySuite:
             newsuite.addTest(configApplyInner(s, configmap, configwrite))
@@ -234,7 +235,7 @@ def testsFromArg(tests, loader, arg, scenario):
         addScenarioTests(tests, loader, 'test%03d' % t, scenario)
 
 if __name__ == '__main__':
-    tests = nose.suite.LazySuite()
+    tests = LazySuite()
 
     # Turn numbers and ranges into test module names
     preserve = timestamp = debug = gdbSub = longtest = False
@@ -248,7 +249,8 @@ if __name__ == '__main__':
     testargs = []
     while len(args) > 0:
         arg = args.pop(0)
-        from unittest import defaultTestLoader as loader
+        from nose.loader import defaultTestLoader
+        loader = defaultTestLoader()
 
         # Command line options
         if arg[0] == '-':
@@ -329,8 +331,7 @@ if __name__ == '__main__':
                 'run.py: specifying a scenario requires a test name\n')
             usage()
             sys.exit(2)
-        from discover import defaultTestLoader as loader
-        suites = loader.discover(suitedir)
+        suites = loader.loadTestsFromDir(suitedir)
         suites = sorted(suites, key=lambda c: str(list(c)[0]))
         if configfile != None:
             suites = configApply(suites, configfile, configwrite)
@@ -343,5 +344,5 @@ if __name__ == '__main__':
         import pdb
         pdb.set_trace()
 
-    result = wttest.runsuite(tests, parallel)
+    result = wttest.runsuite(tests, loader, parallel)
     sys.exit(0 if result.wasSuccessful() else 1)
